@@ -1,9 +1,12 @@
+import csv
 import os
 import re
 import numpy as np
 import pprint
 
-from analysis_engine.node import SectionNode
+from collections import defaultdict
+
+from analysis_engine.node import DerivedParameterNode, MultistateDerivedParameterNode, SectionNode
 from analysis_engine.utils import open_node_container
 
 
@@ -31,6 +34,12 @@ from analysis_engine.utils import open_node_container
     #}
 #}
 
+
+
+
+averages = defaultdict(lambda: defaultdict(list))
+
+
 for filename in os.listdir('.'):
     match = re.match(r'^(?P<frame_type>.*)\.zip$', filename)
     if not match:
@@ -46,19 +55,42 @@ for filename in os.listdir('.'):
         for node_name, node in nodes.iteritems():
             if isinstance(node, SectionNode):
                 phases[node_name] = node
-            else:
+            elif type(node) == DerivedParameterNode and node.array.dtype.kind !='S':
                 parameters[node_name] = node
+            else:
+                # TODO: MultistateDerivedParameterNode
+                pass
         
-        speedbrake = parameters.get('Speedbrake')
-        print speedbrake, speedbrake.frequency
-        if not speedbrake:
-            continue
-        airborne = phases.get('Descending')
-        if not airborne:
-            continue
-        arrays = []
-        for air in airborne:
-            arrays.append(speedbrake.array[air.slice])
-        print np.ma.concatenate(arrays)
-        break
-        
+        for parameter in parameters.itervalues():
+            
+            for phase in phases.itervalues():
+                arrays = []
+                for section in phase:
+                    arrays.append(parameter.array[section.slice.start * parameter.hz:section.slice.stop * parameter.hz])
+                array = np.ma.concatenate(arrays)
+                
+                averages[parameter.name][phase.name].append(np.ma.mean(array))
+                #writer.writerow((parameter.name, phase.name, np.ma.mean(array)))
+                
+                #for raw_value, state_name in parameter.array.values_mapping.iteritems():
+                    #state_averages[parameter.name][phase.name][state_name].append(np.ma.mean(array))
+    
+
+with open('output.csv', 'wb') as file_obj:
+    writer = csv.writer(file_obj)
+    for parameter, phases in averages.iteritems():
+        for phase, values in phases.iteritems():
+            writer.writerow((parameter, phase, np.ma.mean(values)))
+
+
+        #speedbrake = parameters.get('Speedbrake')
+        #if not speedbrake:
+            #continue
+        #airborne = phases.get('Descending')
+        #if not airborne:
+            #continue
+        #arrays = []
+        #for air in airborne:
+            #arrays.append(speedbrake.array[air.slice])
+        #print np.ma.concatenate(arrays)
+
