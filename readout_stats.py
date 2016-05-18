@@ -42,7 +42,7 @@ from analysis_engine.utils import open_node_container
 flights = defaultdict(lambda: defaultdict(dict))
 
 
-for filename in os.listdir('D:\\ReadoutStats\\flight_data\\.'):
+for filename in os.listdir('.'):
     match = re.match(r'^(?P<frame_type>.*)\.zip$', filename)
     if not match:
         continue
@@ -75,7 +75,7 @@ for filename in os.listdir('D:\\ReadoutStats\\flight_data\\.'):
                     continue
                 
                 flights[flight_pk][parameter.name][phase.name] = np.ma.mean(array)
-    break
+    #break
                 #averages[parameter.name][phase.name].append(np.ma.mean(array))
                 #writer.writerow((parameter.name, phase.name, np.ma.mean(array)))
                 
@@ -86,11 +86,11 @@ for filename in os.listdir('D:\\ReadoutStats\\flight_data\\.'):
 def write_csv():
     with open('D:\\ReadoutStats\\csv_flight_data\\output.csv', 'wb') as file_obj:
         writer = csv.writer(file_obj)
-        writer.writerow(('flight_pk', 'parameter', 'phases', 'value', 'attrs'))
+        writer.writerow(('flight_pk', 'parameter', 'phases', 'value'))
         for flight_pk, parameter_phases in flights.iteritems():
             for parameter, phases in parameter_phases.iteritems():
                 for phase, value in phases.iteritems():
-                    writer.writerow((flight_pk, parameter, phase, value, attrs))
+                    writer.writerow((flight_pk, parameter, phase, value))
 
 while True:
     try:
