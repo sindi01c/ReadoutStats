@@ -2,13 +2,29 @@ import csv
 import os
 import re
 import numpy as np
-import pprint
+import statsmodels.robust as rb
+import pandas as pd
+import itertools
+import seaborn as sns
+
 
 from collections import defaultdict
 
 from analysis_engine.node import DerivedParameterNode, MultistateDerivedParameterNode, SectionNode
 from analysis_engine.utils import open_node_container
 
+
+DERIVED_EXCLUSIONS = {
+    '1900D': ['Speedbrake'],
+}
+
+
+#x = {'a', 'b'}
+#y = {'b', 'c'}
+
+#x - y == {'a'}
+
+#x & y == {'b'}
 
 #parameters = {
     #name: [
@@ -37,9 +53,10 @@ from analysis_engine.utils import open_node_container
 
 
 
-averages = defaultdict(lambda: defaultdict(list))
+medians = defaultdict(lambda: defaultdict(list))
+#medianabsolutedev = defaultdict(lambda: defaultdict(list))
 
-
+count = 0
 for filename in os.listdir('.'):
     match = re.match(r'^(?P<frame_type>.*)\.zip$', filename)
     if not match:
@@ -48,6 +65,7 @@ for filename in os.listdir('.'):
     print frame_name
     
     for flight_pk, nodes, attrs in open_node_container(filename):
+        count += 1
         print flight_pk, attrs
         
         phases = {}
@@ -62,35 +80,42 @@ for filename in os.listdir('.'):
                 pass
         
         for parameter in parameters.itervalues():
-            
+            if parameter in DERIVED_EXCLUSIONS[frame_name]:
+                continue
             for phase in phases.itervalues():
                 arrays = []
                 for section in phase:
                     arrays.append(parameter.array[section.slice.start * parameter.hz:section.slice.stop * parameter.hz])
                 array = np.ma.concatenate(arrays)
                 
-                averages[parameter.name][phase.name].append(np.ma.mean(array))
+                median = np.ma.median(array)
+                if np.ma.count(median):
+                    medians[parameter.name][phase.name].append(float(median))
+                #medianabsolutedev[parameter.name][phase.name] = statsmodels.robust.scale.mad(array)
                 #writer.writerow((parameter.name, phase.name, np.ma.mean(array)))
-                
+                                
                 #for raw_value, state_name in parameter.array.values_mapping.iteritems():
                     #state_averages[parameter.name][phase.name][state_name].append(np.ma.mean(array))
-    
+        #if count >= 10:
+            #break
 
-with open('output.csv', 'wb') as file_obj:
+def IQR(values):
+    q75, q25 = np.percentile(values, [75, 25])
+    if q25 == q75:
+        lt = -2*q25
+        ut = 2*q75
+    else:
+        lt = q25-((q75-q25)*2)
+        ut = q75+((q75-q25)*2)
+    return lt, ut, q25, q75
+
+   
+
+with open('D:\\ReadoutStats\\1. fleet__csv_flight_data\\A319-320-321.csv', 'wb') as file_obj:
     writer = csv.writer(file_obj)
-    for parameter, phases in averages.iteritems():
-        for phase, values in phases.iteritems():
-            writer.writerow((parameter, phase, np.ma.mean(values)))
-
-
-        #speedbrake = parameters.get('Speedbrake')
-        #if not speedbrake:
-            #continue
-        #airborne = phases.get('Descending')
-        #if not airborne:
-            #continue
-        #arrays = []
-        #for air in airborne:
-            #arrays.append(speedbrake.array[air.slice])
-        #print np.ma.concatenate(arrays)
-
+    writer.writerow(('parameter', 'phases', 'Average', 'Median', 'StdDev', 'MAD', 'q25','q75', 'lt','ut', 'min', 'max'))
+    for parameter, phases in sorted(medians.items()):
+        for phase, values in sorted(phases.items()):
+            values = np.array(values)
+            lt, ut, q25, q75 = IQR(values)
+            writer.writerow((parameter, phase, np.mean(values), np.median(values), np.std(values), rb.scale.mad(values), q25, q75, lt, ut, np.ma.min(values), np.ma.max(values)))
