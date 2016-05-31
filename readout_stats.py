@@ -14,17 +14,9 @@ from analysis_engine.node import DerivedParameterNode, MultistateDerivedParamete
 from analysis_engine.utils import open_node_container
 
 
-DERIVED_EXCLUSIONS = {
-    '1900D': ['Speedbrake'],
-}
-
-
-#x = {'a', 'b'}
-#y = {'b', 'c'}
-
-#x - y == {'a'}
-
-#x & y == {'b'}
+#DERIVED_EXCLUSIONS = {
+    #'1900D': ['Speedbrake'],
+#}
 
 #parameters = {
     #name: [
@@ -66,7 +58,7 @@ for filename in os.listdir('.'):
     
     for flight_pk, nodes, attrs in open_node_container(filename):
         count += 1
-        print flight_pk, attrs
+        print flight_pk, attrs, count
         
         phases = {}
         parameters = {}
@@ -80,8 +72,8 @@ for filename in os.listdir('.'):
                 pass
         
         for parameter in parameters.itervalues():
-            if parameter in DERIVED_EXCLUSIONS[frame_name]:
-                continue
+            #if parameter in DERIVED_EXCLUSIONS[frame_name]:
+                #continue
             for phase in phases.itervalues():
                 arrays = []
                 for section in phase:
