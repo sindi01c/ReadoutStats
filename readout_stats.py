@@ -39,7 +39,7 @@ from analysis_engine.utils import open_node_container
 
 #averages = defaultdict(lambda: defaultdict(list))
 #averages = defaultdict(lambda: defaultdict(list))
-flights = defaultdict(lambda: defaultdict(dict))
+flights = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
 
 
 for filename in os.listdir('.'):
@@ -57,10 +57,9 @@ for filename in os.listdir('.'):
         for node_name, node in nodes.iteritems():
             if isinstance(node, SectionNode):
                 phases[node_name] = node
-            elif type(node) == DerivedParameterNode and node.array.dtype.kind !='S':
+            elif type(node) in (DerivedParameterNode, MultistateDerivedParameterNode) and node.array.dtype.kind !='S':
                 parameters[node_name] = node
             else:
-                # TODO: MultistateDerivedParameterNode
                 pass
         
         for parameter in parameters.itervalues():
@@ -74,7 +73,13 @@ for filename in os.listdir('.'):
                 if not np.ma.count(array):
                     continue
                 
-                flights[flight_pk][parameter.name][phase.name] = np.ma.mean(array)
+                if hasattr(parameter, 'values_mapping'):
+                    for raw_value, state_name in parameter.values_mapping.iteritems():
+                        flights[flight_pk][parameter.name][phase.name][state_name] = np.ma.sum(array == raw_value) / float(len(array))
+                else:
+                    flights[flight_pk][parameter.name][phase.name][''] = np.ma.mean(array)
+        
+        break
     #break
                 #averages[parameter.name][phase.name].append(np.ma.mean(array))
                 #writer.writerow((parameter.name, phase.name, np.ma.mean(array)))
@@ -84,13 +89,14 @@ for filename in os.listdir('.'):
     
 
 def write_csv():
-    with open('D:\\ReadoutStats\\csv_flight_data\\output.csv', 'wb') as file_obj:
+    with open('D:\\ReadoutStats\\output.csv', 'wb') as file_obj:
         writer = csv.writer(file_obj)
-        writer.writerow(('flight_pk', 'parameter', 'phases', 'value'))
+        writer.writerow(('flight_pk', 'parameter', 'phases', 'states', 'value'))
         for flight_pk, parameter_phases in flights.iteritems():
             for parameter, phases in parameter_phases.iteritems():
-                for phase, value in phases.iteritems():
-                    writer.writerow((flight_pk, parameter, phase, value))
+                for phase, states in phases.iteritems():
+                    for state_name, value in states.iteritems():
+                        writer.writerow((flight_pk, parameter, phase, state_name, value))
 
 while True:
     try:
