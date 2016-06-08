@@ -79,7 +79,7 @@ for filename in os.listdir('.'):
                 else:
                     flights[flight_pk][parameter.name][phase.name][''] = np.ma.mean(array)
         
-        break
+        #break
     #break
                 #averages[parameter.name][phase.name].append(np.ma.mean(array))
                 #writer.writerow((parameter.name, phase.name, np.ma.mean(array)))
@@ -89,7 +89,7 @@ for filename in os.listdir('.'):
     
 
 def write_csv():
-    with open('D:\\ReadoutStats\\output.csv', 'wb') as file_obj:
+    with open('D:\\ReadoutStats\\ms_individual_1.csv', 'wb') as file_obj:
         writer = csv.writer(file_obj)
         writer.writerow(('flight_pk', 'parameter', 'phases', 'states', 'value'))
         for flight_pk, parameter_phases in flights.iteritems():
