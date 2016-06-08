@@ -83,14 +83,14 @@ for filename in os.listdir('.'):
                         arrays.append(parameter.array[section.slice.start * parameter.hz:section.slice.stop * parameter.hz])
                     array = np.ma.concatenate(arrays)
                     
-                    median = np.ma.median(array)
-                    if np.ma.count(median):
-                        medians[parameter.name][phase.name].append(float(median))
+                    std = np.ma.std(array)
+                    if np.ma.count(std):
+                        medians[parameter.name][phase.name].append(float(std))
                     #medianabsolutedev[parameter.name][phase.name] = statsmodels.robust.scale.mad(array)
                     #writer.writerow((parameter.name, phase.name, np.ma.mean(array)))
                                     
                     #for raw_value, state_name in parameter.array.values_mapping.iteritems():
-                        #state_averages[parameter.name][phase.name][state_name].append(np.ma.mean(array))
+                        ##state_averages[parameter.name][phase.name][state_name].append(np.ma.mean(array))
             #if count >= 10:
                 #break
     except (RuntimeError, TypeError, NameError, zipfile.BadZipfile):
