@@ -5,7 +5,7 @@ import numpy as np
 import statsmodels.robust as rb
 import pandas as pd
 import itertools
-import seaborn as sns
+#import seaborn as sns
 import zipfile
 
 
@@ -46,7 +46,7 @@ from analysis_engine.utils import open_node_container
 
 
 
-medians = defaultdict(lambda: defaultdict(list))
+medians = defaultdict(lambda: defaultdict(lambda: defaultdict(dict)))
 #medianabsolutedev = defaultdict(lambda: defaultdict(list))
 
 count = 0
@@ -68,52 +68,104 @@ for filename in os.listdir('.'):
             for node_name, node in nodes.iteritems():
                 if isinstance(node, SectionNode):
                     phases[node_name] = node
-                elif type(node) == DerivedParameterNode and node.array.dtype.kind !='S':
+                elif type(node) in (DerivedParameterNode, MultistateDerivedParameterNode) and node.array.dtype.kind !='S':
                     parameters[node_name] = node
                 else:
                     # TODO: MultistateDerivedParameterNode
                     pass
             
             for parameter in parameters.itervalues():
-                #if parameter in DERIVED_EXCLUSIONS[frame_name]:
-                    #continue
                 for phase in phases.itervalues():
                     arrays = []
                     for section in phase:
                         arrays.append(parameter.array[section.slice.start * parameter.hz:section.slice.stop * parameter.hz])
                     array = np.ma.concatenate(arrays)
                     
-                    median = np.ma.median(array)
-                    if np.ma.count(median):
-                        medians[parameter.name][phase.name].append(float(median))
-                    #medianabsolutedev[parameter.name][phase.name] = statsmodels.robust.scale.mad(array)
-                    #writer.writerow((parameter.name, phase.name, np.ma.mean(array)))
-                                    
-                    #for raw_value, state_name in parameter.array.values_mapping.iteritems():
-                        #state_averages[parameter.name][phase.name][state_name].append(np.ma.mean(array))
-            #if count >= 10:
-                #break
+                    if not np.ma.count(array):
+                        continue                    
+
+                    if hasattr(parameter, 'values_mapping'):
+                        for raw_value, state_name in parameter.values_mapping.iteritems():
+                            medians[parameter.name][phase.name][state_name][flight_pk] = np.ma.sum(array == raw_value) / float(len(array))
+                        else:
+                            pass
+                            #medians[parameter.name][phase.name][''] = np.ma.mean(array)                    
+                    
+                    #median = np.ma.mean(np.ma.sum(array == raw_value) / float(len(array)))
+                    #if np.ma.count(median):
+                        #medians[parameter.name][phase.name][state_name].append(float(median))
+            #if count >= 2:
+                #break        
     except (RuntimeError, TypeError, NameError, zipfile.BadZipfile):
         pass
             
 
-def IQR(values):
-    q75, q25 = np.percentile(values, [75, 25])
-    if q25 == q75:
-        lt = -2*q25
-        ut = 2*q75
-    else:
-        lt = q25-((q75-q25)*2)
-        ut = q75+((q75-q25)*2)
-    return lt, ut, q25, q75
+#def IQR(values):
+    #q75, q25 = np.percentile(values, [75, 25])
+    #if q25 == q75:
+        #lt = -2*q25
+        #ut = 2*q75
+    #else:
+        #lt = q25-((q75-q25)*2)
+        #ut = q75+((q75-q25)*2)
+    #return lt, ut, q25, q75
+    
 
    
 
-with open('D:\\ReadoutStats\\all_fleets.csv', 'wb') as file_obj:
+with open('D:\\ReadoutStats\\multistates_stats2.csv', 'wb') as file_obj:
     writer = csv.writer(file_obj)
-    writer.writerow(('parameter', 'phases', 'Average', 'Median', 'StdDev', 'MAD', 'q25','q75', 'lt','ut', 'min', 'max'))
+    writer.writerow((
+        'parameter', 'phases', 'state', 'av_percentage', 'median', 'std_dev', 'min', 'max', 'lt','ut'))
     for parameter, phases in sorted(medians.items()):
-        for phase, values in sorted(phases.items()):
-            values = np.array(values)
-            lt, ut, q25, q75 = IQR(values)
-            writer.writerow((parameter, phase, np.mean(values), np.median(values), np.std(values), rb.scale.mad(values), q25, q75, lt, ut, np.ma.min(values), np.ma.max(values)))
+        for phase, states in sorted(phases.items()):
+            for state_name, value in states.iteritems():
+                values = value.values()
+                av = np.mean(values) 
+                sd = np.std(values)
+                max_m = np.max(values)
+                min_m = np.min(values)
+                lt = np.clip(av - (2 * sd), 0, 1)
+                ut = np.clip(av + (2 * sd), 0, 1)                
+                delta = ut - lt
+                if delta > 0.8:
+                    lt = np.clip(av - (sd / 2), 0, 1)
+                    ut = np.clip(av + (sd / 2), 0, 1)
+                else:
+                    pass
+                
+                if min_m == max_m and min_m == 0:
+                    lt = 0.0
+                    ut = 0.2
+                elif min_m == max_m and min_m == 1:
+                    lt = 0.8
+                    ut = 1.0
+                elif delta < 0.1 and lt == 0:
+                    lt = 0
+                    ut = 0.2
+                elif delta < 0.1 and ut == 1:
+                    lt = 0.8
+                    ut = 1
+                elif lt == 0 and ut == 1:
+                    if av <= 0.5:
+                        lt = 0
+                        ut = 0.6
+                    else:
+                        lt = 0.4
+                        ut = 1                
+                elif lt < 0.2 and ut < 0.9:
+                    lt = 0
+                elif ut > 0.8 and lt > 0.1:
+                    ut = 1
+                
+                writer.writerow((parameter, phase, state_name, av, np.median(values), sd, min_m, max_m, lt, ut))
+'''
+The logic is that we compute lower threshold -lt- and upper threshold -ut- as the average across all flights +/- two times the SD and we clip everything to 0 and 1.
+If the gap between lt and ut is too big > 0.8, we'll use only 0.5 sd in the thresholds computations
+If the minimum == maximum for a specific state, then it means all the values are either 0 either 1, and we set 
+an allowance of 20% in this case.
+If the lt < 0.2 and ut is not 0.9x we force it to 0. This is becasue we don't want to end up with a set of threhsolds of lt = 0 and ut =1
+Similarly, if the ut > 0.8 and lt > 0.1 we force it to 1.
+When lt = 0  ad ut = 1 (this happens because of large SD) it means we don't fail that param/state at all, so we look at the average and set the 
+allowance to 60% having 20% of overlap
+'''                
