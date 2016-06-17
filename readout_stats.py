@@ -94,7 +94,7 @@ for filename in os.listdir('.'):
                     #median = np.ma.mean(np.ma.sum(array == raw_value) / float(len(array)))
                     #if np.ma.count(median):
                         #medians[parameter.name][phase.name][state_name].append(float(median))
-            #if count >= 2:
+            #if count >= 10:
                 #break        
     except (RuntimeError, TypeError, NameError, zipfile.BadZipfile):
         pass
@@ -133,39 +133,39 @@ with open('D:\\ReadoutStats\\multistates_stats2.csv', 'wb') as file_obj:
                     ut = np.clip(av + (sd / 2), 0, 1)
                 else:
                     pass
-                
-                if min_m == max_m and min_m == 0:
-                    lt = 0.0
-                    ut = 0.2
-                elif min_m == max_m and min_m == 1:
-                    lt = 0.8
-                    ut = 1.0
-                elif delta < 0.1 and lt == 0:
+
+                if lt < 0.2 and ut < 0.9:
+                    lt = 0
+                elif ut > 0.8 and lt > 0.1:
+                    ut = 1 
+                else:
+                    pass
+
+                if lt <= 0.2 and ut <= 0.2:
                     lt = 0
                     ut = 0.2
-                elif delta < 0.1 and ut == 1:
+                elif lt >= 0.8 and ut >= 0.8:
                     lt = 0.8
                     ut = 1
-                elif lt == 0 and ut == 1:
+                else:
+                    pass
+                   
+                if lt == 0 and ut == 1:
                     if av <= 0.5:
                         lt = 0
                         ut = 0.6
                     else:
                         lt = 0.4
-                        ut = 1                
-                elif lt < 0.2 and ut < 0.9:
-                    lt = 0
-                elif ut > 0.8 and lt > 0.1:
-                    ut = 1
-                
+                        ut = 1
+                else:
+                    pass                
                 writer.writerow((parameter, phase, state_name, av, np.median(values), sd, min_m, max_m, lt, ut))
 '''
 The logic is that we compute lower threshold -lt- and upper threshold -ut- as the average across all flights +/- two times the SD and we clip everything to 0 and 1.
 If the gap between lt and ut is too big > 0.8, we'll use only 0.5 sd in the thresholds computations
-If the minimum == maximum for a specific state, then it means all the values are either 0 either 1, and we set 
-an allowance of 20% in this case.
-If the lt < 0.2 and ut is not 0.9x we force it to 0. This is becasue we don't want to end up with a set of threhsolds of lt = 0 and ut =1
+If the lt < 0.2 and ut is < 0.9 we force it to 0. This is becasue we don't want to end up with a set of threhsolds of lt = 0 and ut =1
 Similarly, if the ut > 0.8 and lt > 0.1 we force it to 1.
+If the thresholds are in the 0 - 0.2 or 0.8 - 1 we clip it or 20% allowance to pass.
 When lt = 0  ad ut = 1 (this happens because of large SD) it means we don't fail that param/state at all, so we look at the average and set the 
 allowance to 60% having 20% of overlap
 '''                
