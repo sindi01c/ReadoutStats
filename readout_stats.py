@@ -14,39 +14,6 @@ from collections import defaultdict
 from analysis_engine.node import DerivedParameterNode, MultistateDerivedParameterNode, SectionNode
 from analysis_engine.utils import open_node_container
 from analysis_engine.library import rms_noise
-#from data_validation.noise_analysis import weighted_phases_noise_analysis as wa
-
-
-#DERIVED_EXCLUSIONS = {
-    #'1900D': ['Speedbrake'],
-#}
-
-#parameters = {
-    #name: [
-        #phase, 'average', 0.8,
-    #]
-    ## discrete: 
-    #name: [
-        #phase, state, 80,
-    #]
-#}
-
-#averages = {
-    #parameter_name: {        
-        #'Approach': [0.4, 0.7, 0.8],
-    #},
-    ## discrete
-    #parameter_name: {
-        #'Approach': {
-            #'Warning': [],
-            #'Unknown': [],
-            #'-': [],
-        #}
-    #}
-#}
-
-
-
 
 medians = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
 #medianabsolutedev = defaultdict(lambda: defaultdict(list))
@@ -54,72 +21,53 @@ medians = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
 count = 0
 for filename in os.listdir('.'):
 
-    match = re.match(r'^(?P<frame_type>.*)\.zip$', filename)
-    if not match:
-        continue
-    frame_name = match.groups()[0]
-    print frame_name
+  match = re.match(r'^(?P<frame_type>.*)\.zip$', filename)
+  if not match:
+    continue
+  frame_name = match.groups()[0]
+  print frame_name
 
-    try:
-        for flight_pk, nodes, attrs in open_node_container(filename):
-            count += 1
-            print flight_pk, attrs, count
+  try:
+    for flight_pk, nodes, attrs in open_node_container(filename):
+      count += 1
+      print flight_pk, attrs, count
 
-            phases = {}
-            parameters = {}
-            for node_name, node in nodes.iteritems():
-                if isinstance(node, SectionNode):
-                    phases[node_name] = node
-                elif type(node) == DerivedParameterNode and node.array.dtype.kind !='S':
-                    parameters[node_name] = node
-                else:
-                    # TODO: MultistateDerivedParameterNode
-                    pass
+      phases = {}
+      parameters = {}
+      for node_name, node in nodes.iteritems():
+        if isinstance(node, SectionNode):
+          phases[node_name] = node
+        elif type(node) == DerivedParameterNode and node.array.dtype.kind !='S':
+          parameters[node_name] = node
+        else:
+          # TODO: MultistateDerivedParameterNode
+          pass
 
-            for parameter in parameters.itervalues():
-                #if parameter in DERIVED_EXCLUSIONS[frame_name]:
-                    #continue
-                for phase in phases.itervalues():
-                    arrays = []
-                    for section in phase:
-                        arrays.append(parameter.array[section.slice.start * parameter.hz:section.slice.stop * parameter.hz])
-                    array = np.ma.concatenate(arrays)
+      for parameter in parameters.itervalues():
+        for phase in phases.itervalues():
+          arrays = []
+          for section in phase:
+            arrays.append(parameter.array[section.slice.start * parameter.hz:section.slice.stop * parameter.hz])
+          array = np.ma.concatenate(arrays)
 
-                    std = np.ma.std(array)
-                    noise = rms_noise(array, ignore_pc=10)
-                    if np.ma.count(std):
-                        medians[parameter.name][phase.name]['std'].append(float(std))
-                        medians[parameter.name][phase.name]['noise'].append(float(noise or 0)) # [str(std)].append(float(noise))
-                    #medianabsolutedev[parameter.name][phase.name] = statsmodels.robust.scale.mad(array)
-                    #writer.writerow((parameter.name, phase.name, np.ma.mean(array)))
+          std = np.ma.std(array)
+          noise = rms_noise(array, ignore_pc=10)
+          if np.ma.count(std):
+            medians[parameter.name][phase.name]['std'].append(float(std))
+            medians[parameter.name][phase.name]['noise'].append(float(noise or 0)) # [str(std)].append(float(noise))
+          #medianabsolutedev[parameter.name][phase.name] = statsmodels.robust.scale.mad(array)
+          #writer.writerow((parameter.name, phase.name, np.ma.mean(array)))
 
-                    #for raw_value, state_name in parameter.array.values_mapping.iteritems():
-                        ##state_averages[parameter.name][phase.name][state_name].append(np.ma.mean(array))
-        #if count >= 10:
-            #break
-    except (RuntimeError, TypeError, NameError, zipfile.BadZipfile):
-        pass
+          #for raw_value, state_name in parameter.array.values_mapping.iteritems():
+            ##state_averages[parameter.name][phase.name][state_name].append(np.ma.mean(array))
+    #if count >= 10:
+      #break
+  except (RuntimeError, TypeError, NameError, zipfile.BadZipfile):
+    pass
 
-
-def IQR(values):
-    q75, q25 = np.percentile(values, [75, 25])
-    if q25 == q75:
-        lt = -2*q25
-        ut = 2*q75
-    else:
-        lt = q25-((q75-q25)*2)
-        ut = q75+((q75-q25)*2)
-    return lt, ut, q25, q75
-
-
-
-with open('D:\\ReadoutStats\\noise.csv', 'wb') as file_obj:
-    writer = csv.writer(file_obj)
-    writer.writerow(('parameter', 'phases', 'Average', 'q25','q75', 'lt','ut', 'av noise', 'max noise'))
-    for parameter, phases in sorted(medians.items()):
-        for phase, values in sorted(phases.items()):
-            values['std']
-            #values = np.array(values)
-            lt, ut, q25, q75 = IQR(values['std'])
-            writer.writerow((parameter, phase, np.mean(values['std']), q25, q75, lt, ut, np.mean(values['noise']), np.max(values['noise'])))
-            #writer.writerow((parameter, phase, np.mean(values), np.median(values), np.std(values), rb.scale.mad(values), q25, q75, lt, ut, np.ma.min(values), np.ma.max(values), np.ma.mean(noise)))
+with open('D:\\ReadoutStats\\noise1.csv', 'wb') as file_obj:
+  writer = csv.writer(file_obj)
+  writer.writerow(('parameter', 'phases', 'average', 'median', 'std', 'max'))
+  for parameter, phases in sorted(medians.items()):
+    for phase, values in sorted(phases.items()):
+      writer.writerow((parameter, phase, np.mean(values['noise']), np.median(values['noise']), np.std(values['noise']), np.max(values['noise'])))
