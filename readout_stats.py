@@ -42,24 +42,18 @@ for filename in os.listdir('.'):
                     pass
             
             for parameter in parameters.itervalues():
-                #if parameter in DERIVED_EXCLUSIONS[frame_name]:
-                    #continue
+
                 for phase in phases.itervalues():
                     arrays = []
                     for section in phase:
                         arrays.append(parameter.array[section.slice.start * parameter.hz:section.slice.stop * parameter.hz])
                     array = np.ma.concatenate(arrays)
                     
-                    median = np.ma.median(array)
-                    if np.ma.count(median):
-                        medians[parameter.name][phase.name].append(float(median))
-                    #medianabsolutedev[parameter.name][phase.name] = statsmodels.robust.scale.mad(array)
-                    #writer.writerow((parameter.name, phase.name, np.ma.mean(array)))
-                                    
-                    #for raw_value, state_name in parameter.array.values_mapping.iteritems():
-                        #state_averages[parameter.name][phase.name][state_name].append(np.ma.mean(array))
-            #if count >= 10:
-                #break
+                    std = np.ma.std(array)
+                    if np.ma.count(std):
+                        medians[parameter.name][phase.name].append(float(std))
+            if count >= 10:
+                break
     except (RuntimeError, TypeError, NameError, zipfile.BadZipfile):
         pass
             
@@ -76,9 +70,9 @@ def IQR(values):
 
 
 
-with open('/Users/CatalinSindilaru/GitHub/ReadoutStats/min_change.csv', 'wb') as file_obj:
+with open('D:/Documents/GitHub/ReadoutStats/min_change.csv', 'wb') as file_obj:
     writer = csv.writer(file_obj)
-    writer.writerow(('parameter', 'phases', 'Average', 'Median', 'StdDev', 'MAD', 'q25','q75', 'lt','ut', 'min', 'max', 'avg_first_5_min'))
+    writer.writerow(('parameter', 'phases', 'Average STD_dev', 'Median_std_dev', 'StdDev_of_std_dev', 'MAD_std', 'q25_std','q75_std', 'lt_std','ut_std', 'min_std', 'max_std', 'avg_first_5_min_std'))
     for parameter, phases in sorted(medians.items()):
         for phase, values in sorted(phases.items()):
             values = np.array(values)
