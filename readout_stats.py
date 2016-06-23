@@ -2,10 +2,8 @@ import csv
 import os
 import re
 import numpy as np
-import statsmodels.robust as rb
-import pandas as pd
 import itertools
-import seaborn as sns
+import statsmodels.robust as rb
 import zipfile
 
 
@@ -13,37 +11,6 @@ from collections import defaultdict
 
 from analysis_engine.node import DerivedParameterNode, MultistateDerivedParameterNode, SectionNode
 from analysis_engine.utils import open_node_container
-
-
-#DERIVED_EXCLUSIONS = {
-    #'1900D': ['Speedbrake'],
-#}
-
-#parameters = {
-    #name: [
-        #phase, 'average', 0.8,
-    #]
-    ## discrete: 
-    #name: [
-        #phase, state, 80,
-    #]
-#}
-
-#averages = {
-    #parameter_name: {        
-        #'Approach': [0.4, 0.7, 0.8],
-    #},
-    ## discrete
-    #parameter_name: {
-        #'Approach': {
-            #'Warning': [],
-            #'Unknown': [],
-            #'-': [],
-        #}
-    #}
-#}
-
-
 
 
 medians = defaultdict(lambda: defaultdict(list))
@@ -107,13 +74,14 @@ def IQR(values):
         ut = q75+((q75-q25)*2)
     return lt, ut, q25, q75
 
-   
 
-with open('D:\\ReadoutStats\\all_fleets.csv', 'wb') as file_obj:
+
+with open('/Users/CatalinSindilaru/GitHub/ReadoutStats/min_change.csv', 'wb') as file_obj:
     writer = csv.writer(file_obj)
-    writer.writerow(('parameter', 'phases', 'Average', 'Median', 'StdDev', 'MAD', 'q25','q75', 'lt','ut', 'min', 'max'))
+    writer.writerow(('parameter', 'phases', 'Average', 'Median', 'StdDev', 'MAD', 'q25','q75', 'lt','ut', 'min', 'max', 'avg_first_5_min'))
     for parameter, phases in sorted(medians.items()):
         for phase, values in sorted(phases.items()):
             values = np.array(values)
+            min_values = np.sort(values)
             lt, ut, q25, q75 = IQR(values)
-            writer.writerow((parameter, phase, np.mean(values), np.median(values), np.std(values), rb.scale.mad(values), q25, q75, lt, ut, np.ma.min(values), np.ma.max(values)))
+            writer.writerow((parameter, phase, np.mean(values), np.median(values), np.std(values), rb.scale.mad(values), q25, q75, lt, ut, np.ma.min(values), np.ma.max(values), np.mean(min_values[0:5])))
