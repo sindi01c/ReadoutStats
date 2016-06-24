@@ -5,6 +5,8 @@ import numpy as np
 import itertools
 import statsmodels.robust as rb
 import zipfile
+from data_validation.correlation_setup import get_aligned_param
+from data_validation.correlation import correlate_linear
 
 
 from collections import defaultdict
@@ -13,7 +15,7 @@ from analysis_engine.node import DerivedParameterNode, MultistateDerivedParamete
 from analysis_engine.utils import open_node_container
 
 
-medians = defaultdict(lambda: defaultdict(list))
+medians = defaultdict(lambda: defaultdict(lambda: defaultdict(list)))
 #medianabsolutedev = defaultdict(lambda: defaultdict(list))
 
 count = 0
@@ -25,57 +27,54 @@ for filename in os.listdir('.'):
     frame_name = match.groups()[0]
     print frame_name
     
-    try:
-        for flight_pk, nodes, attrs in open_node_container(filename):
-            count += 1
-            print flight_pk, attrs, count
+    #try:
+    for flight_pk, nodes, attrs in open_node_container(filename):
+        count += 1
+        print flight_pk, attrs, count
+        
+        phases = {}
+        test_parameters = {}        
+        ref_parameters = {}
+        for node_name, node in nodes.iteritems():
+            if isinstance(node, SectionNode):
+                phases[node_name] = node
+            elif type(node) == DerivedParameterNode and node.array.dtype.kind !='S':
+                test_parameters[node_name] = node
+                ref_parameters[node_name] = node
+            else:
+                # TODO: MultistateDerivedParameterNode
+                pass
+        
+        for test_parameter in test_parameters.itervalues():
+            for phase in phases.itervalues():
+                test_arrays = []
+                for section in phase:
+                    test_arrays.append(test_parameter.array[section.slice.start * test_parameter.hz:section.slice.stop * test_parameter.hz])
+                t_arrays = np.ma.concatenate(test_arrays)
+                medians[flight_pk][test_parameter.name][phase.name].append(t_arrays)
+                
+        for ref_parameter in ref_parameters.itervalues():
+            for phase in phases.itervalues():
+                ref_arrays = []
+                for section in phase:
+                    ref_arrays.append(ref_parameter.array[section.slice.start * ref_parameter.hz:section.slice.stop * ref_parameter.hz])
+                r_arrays = np.ma.concatenate(ref_arrays)                
+                medians[flight_pk][ref_parameter.name][phase.name].append(r_arrays)
+               
+                #if np.ma.count(ref_arrays):
+                    #medians[test_parameter.name][phase.name].append(float(med))
+        if count >= 10:
+            break
+    #except (RuntimeError, TypeError, NameError, zipfile.BadZipfile):
+        #pass
             
-            phases = {}
-            parameters = {}
-            for node_name, node in nodes.iteritems():
-                if isinstance(node, SectionNode):
-                    phases[node_name] = node
-                elif type(node) == DerivedParameterNode and node.array.dtype.kind !='S':
-                    parameters[node_name] = node
-                else:
-                    # TODO: MultistateDerivedParameterNode
-                    pass
-            
-            for parameter in parameters.itervalues():
 
-                for phase in phases.itervalues():
-                    arrays = []
-                    for section in phase:
-                        arrays.append(parameter.array[section.slice.start * parameter.hz:section.slice.stop * parameter.hz])
-                    array = np.ma.concatenate(arrays)
-                    
-                    std = np.ma.std(array)
-                    if np.ma.count(std):
-                        medians[parameter.name][phase.name].append(float(std))
-            if count >= 10:
-                break
-    except (RuntimeError, TypeError, NameError, zipfile.BadZipfile):
-        pass
-            
-
-def IQR(values):
-    q75, q25 = np.percentile(values, [75, 25])
-    if q25 == q75:
-        lt = -2*q25
-        ut = 2*q75
-    else:
-        lt = q25-((q75-q25)*2)
-        ut = q75+((q75-q25)*2)
-    return lt, ut, q25, q75
-
-
-
-with open('D:/Documents/GitHub/ReadoutStats/min_change.csv', 'wb') as file_obj:
+with open('D:/Documents/GitHub/ReadoutStats/correlation.csv', 'wb') as file_obj:
     writer = csv.writer(file_obj)
-    writer.writerow(('parameter', 'phases', 'Average STD_dev', 'Median_std_dev', 'StdDev_of_std_dev', 'MAD_std', 'q25_std','q75_std', 'lt_std','ut_std', 'min_std', 'max_std', 'avg_first_5_min_std'))
-    for parameter, phases in sorted(medians.items()):
-        for phase, values in sorted(phases.items()):
-            values = np.array(values)
-            min_values = np.sort(values)
-            lt, ut, q25, q75 = IQR(values)
-            writer.writerow((parameter, phase, np.mean(values), np.median(values), np.std(values), rb.scale.mad(values), q25, q75, lt, ut, np.ma.min(values), np.ma.max(values), np.mean(min_values[0:5])))
+    writer.writerow(('test_parameter', 'ref_parameter', 'phases', 'Pearsone_Corr'))
+    for flight_pk, parameter_phases in medians.iteritems():
+        for test_parameter, ref_parameter in sorted(medians.items()):
+            get_aligned_param(ref_param, test_param)
+            for phase, values in sorted(phases.items()):
+                    values = np.array(values)
+                    writer.writerow((test_parameter, ref_parameter, phase)) #np.mean(values), np.median(values), np.std(values)
