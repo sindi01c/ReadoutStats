@@ -51,18 +51,18 @@ for filename in os.listdir('.'):
                 for section in phase:
                     test_arrays.append(test_parameter.array[section.slice.start * test_parameter.hz:section.slice.stop * test_parameter.hz])
                 t_arrays = np.ma.concatenate(test_arrays)
-                medians[flight_pk][test_parameter.name][phase.name].append(t_arrays)
+                if np.ma.count(t_arrays):
+                    medians[flight_pk][test_parameter.name][phase.name].append(t_arrays)
                 
         for ref_parameter in ref_parameters.itervalues():
             for phase in phases.itervalues():
                 ref_arrays = []
                 for section in phase:
                     ref_arrays.append(ref_parameter.array[section.slice.start * ref_parameter.hz:section.slice.stop * ref_parameter.hz])
-                r_arrays = np.ma.concatenate(ref_arrays)                
-                medians[flight_pk][ref_parameter.name][phase.name].append(r_arrays)
-               
-                #if np.ma.count(ref_arrays):
-                    #medians[test_parameter.name][phase.name].append(float(med))
+                r_arrays = np.ma.concatenate(ref_arrays)
+                if np.ma.count(r_arrays):
+                    medians[flight_pk][ref_parameter.name][phase.name].append(r_arrays)
+                
         if count >= 10:
             break
     #except (RuntimeError, TypeError, NameError, zipfile.BadZipfile):
@@ -72,9 +72,8 @@ for filename in os.listdir('.'):
 with open('D:/Documents/GitHub/ReadoutStats/correlation.csv', 'wb') as file_obj:
     writer = csv.writer(file_obj)
     writer.writerow(('test_parameter', 'ref_parameter', 'phases', 'Pearsone_Corr'))
-    for flight_pk, parameter_phases in medians.iteritems():
-        for test_parameter, ref_parameter in sorted(medians.items()):
-            get_aligned_param(ref_param, test_param)
-            for phase, values in sorted(phases.items()):
-                    values = np.array(values)
-                    writer.writerow((test_parameter, ref_parameter, phase)) #np.mean(values), np.median(values), np.std(values)
+    for parameter, phases in sorted(medians.items()):
+        for phase, values in sorted(phases.items()):
+            #values = np.array(values)
+            co = correlate_linear(r_arrays, t_arrays)
+            writer.writerow((test_parameter, ref_parameter, phase, co)) #np.mean(values), np.median(values), np.std(values)
